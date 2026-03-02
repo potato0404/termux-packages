@@ -10,30 +10,39 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Cache Rust & Build Objects
-        uses: actions/cache@v4
-        with:
-          path: |
-            /root/.cargo/registry
-            /root/.cargo/git
-            /home/builder/termux-packages/packages/neovide/target
-          key: ${{ runner.os }}-cargo-v2-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-v2-
-
-      - name: Turbocharge Environment
+      - name: Quebrar Restrições de Sistema
         run: |
-          # Instala as dependências como root direto
-          apt-get update
-          apt-get install -y cmake ninja-build python3 build-essential clang binutils
+          # 1. Resolve o erro de permissão do APT forçando a criação das pastas
+          mkdir -p /var/lib/apt/lists/partial
+          chmod -R 777 /var/lib/apt/lists
           
-          # Organiza a casa
-          mkdir -p output
+          # 2. Dá super-poderes ao usuário builder (o segredo da blindagem)
+          echo "builder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+          
+          # 3. Instala dependências críticas como Root antes do builder assumir
+          apt-get update
+          apt-get install -y cmake ninja-build python3 build-essential
+          
+          # 4. Prepara o workspace do Termux
+          mkdir -p /home/builder/termux-packages
           cp -r $GITHUB_WORKSPACE/* /home/builder/termux-packages/
-          # Dá permissão total para garantir que nada trave
+          chown -R builder:builder /home/builder/termux-packages
+
+      - name: Executar Compilação (O Salto do Gato)
+        run: |
+          # Executamos como builder, mas com o ambiente limpo
+          sudo -u builder bash -c "
+            cd /home/builder/termux-packages && \
+            ./build-package.sh -a aarch64 -f neovide
+          "
+
+      - name: Upload do Artefato
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: neovide-final-deb
+          path: /home/builder/termux-packages/output/*.deb
           chmod -R 777 /home/builder/termux-packages
 
       - name: Executar Compilação (Modo Root)
