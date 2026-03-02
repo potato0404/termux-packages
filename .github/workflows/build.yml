@@ -13,25 +13,42 @@ jobs:
         with:
           fetch-depth: 0
 
+      # 1. GERENCIAMENTO DE CACHE
+      - name: Cache Rust & Build Objects
+        uses: actions/cache@v4
+        with:
+          path: |
+            /home/builder/.cargo/registry
+            /home/builder/.cargo/git
+            /home/builder/termux-packages/packages/neovide/target
+          # A chave muda se o Cargo.lock mudar (novas dependências)
+          key: ${{ runner.os }}-cargo-v1-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-v1-
+
+      # 2. PREPARAÇÃO DO SISTEMA (COM SUDO)
       - name: Turbocharge Container Environment
         run: |
-          # Instala ferramentas que o Skia (dentro do Neovide) exige para compilar
-          apt-get update
-          apt-get install -y cmake ninja-build python3 python3-pip build-essential clang binutils
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build python3 python3-pip build-essential clang binutils
           
-          # Garante a estrutura do Termux
           mkdir -p output
           cp -r $GITHUB_WORKSPACE/* /home/builder/termux-packages/
-          chown -R builder:builder /home/builder/termux-packages
+          
+          # Garante que o usuário 'builder' seja dono de tudo, inclusive do que veio do cache
+          sudo chown -R builder:builder /home/builder/termux-packages
+          sudo mkdir -p /home/builder/.cargo
+          sudo chown -R builder:builder /home/builder/.cargo
 
-      - name: Executar Compilação de Alta Performance
+      # 3. COMPILAÇÃO
+      - name: Executar Compilação
         run: |
-          # Executa como builder com as variáveis de ambiente do cargo
           sudo -u builder bash -c "
             cd /home/builder/termux-packages && \
             ./build-package.sh -a aarch64 -f neovide
           "
 
+      # 4. SALVAMENTO E ENTREGA
       - name: Upload do Pacote .deb
         if: success()
         uses: actions/upload-artifact@v4
