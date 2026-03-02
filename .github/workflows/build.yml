@@ -1,0 +1,14 @@
+name: Build Neovide
+on:
+  workflow_dispatch: # Permite rodar manualmente no botão
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Package
+        uses: termux/action-build-package@master
+        with:
+          package_name: neovide
+          target_arch: aarch64
