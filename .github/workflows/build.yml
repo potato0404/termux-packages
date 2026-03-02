@@ -1,4 +1,4 @@
-name: Build Neovide Nativo
+name: Build-Neovide
 on:
   workflow_dispatch:
 
@@ -8,51 +8,27 @@ jobs:
     container:
       image: termux/package-builder:latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Quebrar Restrições de Sistema
+      - name: Fix-Permissions
         run: |
-          # 1. Resolve o erro de permissão do APT forçando a criação das pastas
           mkdir -p /var/lib/apt/lists/partial
           chmod -R 777 /var/lib/apt/lists
-          
-          # 2. Dá super-poderes ao usuário builder (o segredo da blindagem)
           echo "builder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-          
-          # 3. Instala dependências críticas como Root antes do builder assumir
           apt-get update
           apt-get install -y cmake ninja-build python3 build-essential
-          
-          # 4. Prepara o workspace do Termux
           mkdir -p /home/builder/termux-packages
           cp -r $GITHUB_WORKSPACE/* /home/builder/termux-packages/
           chown -R builder:builder /home/builder/termux-packages
 
-      - name: Executar Compilação (O Salto do Gato)
+      - name: Build
         run: |
-          # Executamos como builder, mas com o ambiente limpo
-          sudo -u builder bash -c "
-            cd /home/builder/termux-packages && \
-            ./build-package.sh -a aarch64 -f neovide
-          "
+          sudo -u builder bash -c "cd /home/builder/termux-packages && ./build-package.sh -a aarch64 -f neovide"
 
-      - name: Upload do Artefato
+      - name: Upload
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: neovide-final-deb
-          path: /home/builder/termux-packages/output/*.deb
-          chmod -R 777 /home/builder/termux-packages
-
-      - name: Executar Compilação (Modo Root)
-        run: |
-          # Rodamos o script direto, sem 'su' ou 'sudo -u'
-          cd /home/builder/termux-packages && ./build-package.sh -a aarch64 -f neovide
-
-      - name: Upload do Pacote .deb
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: neovide-android
+          name: neovide-deb
           path: /home/builder/termux-packages/output/*.deb
