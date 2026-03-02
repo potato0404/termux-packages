@@ -1,14 +1,30 @@
-name: Build Neovide
+name: Build Neovide Nativo
 on:
-  workflow_dispatch: # Permite rodar manualmente no botão
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: termux/package-builder:latest # Usa o container oficial
     steps:
-      - uses: actions/checkout@v4
-      - name: Build Package
-        uses: termux/action-build-package@master
+      - name: Checkout do código
+        uses: actions/checkout@v4
         with:
-          package_name: neovide
-          target_arch: aarch64
+          fetch-depth: 0
+
+      - name: Configurar diretório de trabalho
+        run: |
+          # O script do Termux espera estar em uma estrutura específica
+          cp -r $GITHUB_WORKSPACE/* /home/builder/termux-packages/
+          chown -R builder:builder /home/builder/termux-packages
+
+      - name: Rodar Compilação
+        run: |
+          su - builder -c "cd ~/termux-packages && ./build-package.sh -a aarch64 neovide"
+
+      - name: Upload do Artefato (.deb)
+        uses: actions/upload-artifact@v4
+        with:
+          name: neovide-deb
+          path: /home/builder/termux-packages/output/*.deb
